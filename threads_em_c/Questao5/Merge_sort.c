@@ -66,14 +66,14 @@ int main(){
     vetor_dir.inicio=meio;
     vetor_dir.fim=TAM;
     //
-    pthread_t principal,esquerda,direita;
+    pthread_t esquerda,direita;//merge sorte na metade da esquerda e na metade da direita
     pthread_create(&esquerda,NULL,Merge_Sort,&vetor_esq);
     pthread_create(&direita,NULL,Merge_Sort,&vetor_dir);
     //
     pthread_join(esquerda, NULL);
     pthread_join(direita, NULL);
     //
-    merge(vetor, 0, meio - 1, TAM - 1);
+    merge(vetor, 0, meio - 1, TAM - 1);//dar um ultimo merge nas das metades ja ordenadas
     printf("[ ");
     for(int i=0;i<TAM;i++){
         printf("%d ",vetor[i]);
