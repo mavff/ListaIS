@@ -14,14 +14,13 @@ pthread_barrier_t barrier;//uso de barreira
 int main(){
     SEL *equacao = malloc(sizeof(SEL)*TAM_MATRIZ);
     pthread_t variavel_equacao[TAM_MATRIZ];
-    pthread_barrier_init(&barrier, NULL, TAM_MATRIZ);
+    pthread_barrier_init(&barrier, NULL, TAM_MATRIZ);//barreira para aguardar todas as xk variaveis ficarem prontas para utilizar para o calculo de xk+1;
     int valores_A[TAM_MATRIZ][TAM_MATRIZ]={4, 3, -5,
                                              -2, 3, 4,
                                              3, -4, 3};
     int valores_X[TAM_MATRIZ] = {0, 0, 0};
     int valores_B[TAM_MATRIZ] = {10, 13, -6};
-    for (int i = 0; i < TAM_MATRIZ; i++) {//preencher o vetor ,pois c fede
-        
+    for (int i = 0; i < TAM_MATRIZ; i++) {//preencher o vetor 
         for (int j = 0; j < TAM_MATRIZ; j++) {
             equacao[i].A[i][j] = valores_A[i][j];
         }
@@ -54,7 +53,7 @@ void Metodo_jacobi(SEL* sistema){
         *x_k_mais_1=(b_i-somatorio)/a_i_i;
         k++;
         somatorio=0;
-        pthread_barrier_wait(&barrier);
+        pthread_barrier_wait(&barrier);//esperar a cada interacao para os xk de cada thread ficar pronto
 
     }
     printf("Solucao da variavel X_%d : %.6f\n",i+1,*x_k_mais_1);
