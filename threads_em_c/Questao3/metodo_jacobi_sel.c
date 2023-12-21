@@ -6,68 +6,87 @@
 #include <time.h>
 
 
-#define TAM_MATRIZ 3
+#define NUM_INCOGNITAS 3
+//#define NUM_THREADS    3
 
 typedef struct {
-	int var_i;
-	float A[TAM_MATRIZ][TAM_MATRIZ];
-	float X_K[TAM_MATRIZ];
-	float B[TAM_MATRIZ];
-	float Solucao[TAM_MATRIZ];
+	float A[NUM_INCOGNITAS][NUM_INCOGNITAS];
+	float X[NUM_INCOGNITAS];
+	float B[NUM_INCOGNITAS];
+	float Solucao[NUM_INCOGNITAS];
 } SEL;  //Sistema de Equacoes Lineares
 
-void* Metodo_jacobi(void* sistema_pt);
+typedef struct {
+	int min;
+	int max;
+} pair;
+
+
+void* Metodo_jacobi(void* var);
 
 pthread_barrier_t barrier;  //uso de barreira
+pthread_t threads[NUM_INCOGNITAS];
+SEL sistema;
+//pair var[NUM_THREADS];
 
 int main() {
-	SEL* equacao = malloc(sizeof(SEL) * TAM_MATRIZ);
-	pthread_t variavel_equacao[TAM_MATRIZ];
-	pthread_barrier_init(
-	  &barrier,
-	  NULL,
-	  TAM_MATRIZ);  //barreira para aguardar todas as xk variaveis ficarem prontas para utilizar para o calculo de xk+1;
-	int valores_A[TAM_MATRIZ][TAM_MATRIZ] = {{4, 3, -5}, {-2, 3, 4}, {3, -4, 3}};
-	int valores_X[TAM_MATRIZ] = {0, 0, 0};
-	int valores_B[TAM_MATRIZ] = {10, 13, -6};
-	for (int i = 0; i < TAM_MATRIZ; i++) {  //preencher o vetor
-		for (int j = 0; j < TAM_MATRIZ; j++) { equacao[i].A[i][j] = valores_A[i][j]; }
-		equacao[i].X_K[i] = valores_X[i];
-		equacao[i].B[i] = valores_B[i];
+	int val_A[NUM_INCOGNITAS][NUM_INCOGNITAS] = {{4, 3, -5}, {-2, 3, 4}, {3, -4, 3}};
+	int val_X[NUM_INCOGNITAS] = {1, 1, 1};
+	int val_B[NUM_INCOGNITAS] = {10, 13, -6};
+	for (int i = 0; i < NUM_INCOGNITAS; i++) {
+		for (int j = 0; j < NUM_INCOGNITAS; j++) { sistema.A[i][j] = val_A[i][j]; }
+		sistema.X[i] = val_X[i];
+		sistema.B[i] = val_B[i];
+	}  // Inicializa o sistema
+
+	int NUM_THREADS;
+	printf("Numero de threads: ");
+	scanf("%d", &NUM_THREADS);
+	pair var[NUM_THREADS];
+	if (NUM_THREADS > NUM_INCOGNITAS) {
+		fprintf(stderr, "Numero de threads deve ser menor que %d \n", (int) NUM_INCOGNITAS);
+		return 1;
 	}
 
+	int qtd = NUM_INCOGNITAS / NUM_THREADS;
+	int resto = NUM_INCOGNITAS % NUM_THREADS;
+	int cursor = 0;
+	for (int i = 0; i < NUM_THREADS; i++) {
+		var[i].min = cursor;
+		cursor += qtd;
+		if (resto > 0) {
+			var[i].max = ++cursor;
+			resto--;
+		} else
+			var[i].max = cursor;
+	}  // Divide as variáveis entre as threads
+
+
+	pthread_barrier_init(&barrier, NULL, NUM_THREADS);
+	//barreira para aguardar todas as xk variaveis ficarem prontas para utilizar para o calculo de xk+1;
+
 	clock_t timer_start = clock();
-	for (int i = 0; i < TAM_MATRIZ; i++) {  //criar a thread e puxar o metodo
-		equacao[i].var_i = i;
-		pthread_create(&variavel_equacao[i], NULL, Metodo_jacobi, (void*) &equacao[i]);
-	}
-	for (int i = 0; i < TAM_MATRIZ; ++i) { pthread_join(variavel_equacao[i], NULL); }
+	for (int i = 0; i < NUM_THREADS; i++) { pthread_create(&threads[i], NULL, Metodo_jacobi, (void*) &var[i]); }
+	for (int i = 0; i < NUM_THREADS; i++) { pthread_join(threads[i], NULL); }
 	clock_t timer_end = clock();
 	double timer_total = ((double) (timer_end - timer_start) * 1000.0) / CLOCKS_PER_SEC;
 	printf("Tempo gasto: %.3lf\n", timer_total);
 
 	pthread_barrier_destroy(&barrier);
-	pthread_exit(NULL);
+	return 0;
 }
-void* Metodo_jacobi(void* sistema_pt) {
-	SEL* sistema = (SEL*) sistema_pt;
-	int p = 15, k = 0;
-	int i = sistema->var_i;  //variavel i=1,2,3,4...n que estamos trabalhando
-	float* x_k_mais_1 = &sistema->Solucao[i];
-	float b_i = sistema->B[i];  //termo Bi da matriz;
-	float a_i_i = sistema->A[i][i];  //termo Aii da matriz
-	float somatorio = 0;
+void* Metodo_jacobi(void* var) {
+	int start = ((pair*) var)->min;
+	int end = ((pair*) var)->max;
+	int k = 0, p = 15;
 	while (k < p) {
-		for (int j = 0; j < TAM_MATRIZ; j++) {  //fazer o somatorio
-			if (j != i) {  //i!=j
-				somatorio += (sistema->A[i][j]) * (sistema->X_K[j]);
-			}
+		for (int i = start; i < end; i++) {
+			int soma = 0;
+			for (int j = 0; j < NUM_INCOGNITAS; j++) { soma += (j != i) ? (sistema.A[i][j]) * (sistema.X[j]) : 0; }
+			sistema.X[i] = (sistema.B[i] - soma) / sistema.A[i][i];
 		}
-		*x_k_mais_1 = (b_i - somatorio) / a_i_i;
 		k++;
-		somatorio = 0;
-		pthread_barrier_wait(&barrier);  //esperar a cada interacao para os xk de cada thread ficar pronto
+		pthread_barrier_wait(&barrier);
 	}
-	printf("Solucao da variavel X_%d : %.6f\n", i + 1, *x_k_mais_1);
 	return NULL;
 }
